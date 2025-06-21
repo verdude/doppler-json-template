@@ -58,3 +58,21 @@ pub fn main() !void {
     if (!first) try out.writeAll("\n");
     try out.writeAll("}\n");
 }
+
+test "isJsonType detects json computedValueType" {
+    const alloc = std.testing.allocator;
+    const src = "{\"computedValueType\": {\"type\": \"json\"}}";
+    var parsed = try json.parseFromSlice(json.Value, alloc, src, .{});
+    defer parsed.deinit();
+
+    try std.testing.expect(isJsonType(&parsed.value));
+}
+
+test "isJsonType returns false when type is not json" {
+    const alloc = std.testing.allocator;
+    const src = "{\"computedValueType\": {\"type\": \"string\"}}";
+    var parsed = try json.parseFromSlice(json.Value, alloc, src, .{});
+    defer parsed.deinit();
+
+    try std.testing.expect(!isJsonType(&parsed.value));
+}
