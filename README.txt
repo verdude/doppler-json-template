@@ -1,4 +1,4 @@
-The following command write secrets to the named pipe, disregarding json objects/arrays.
+The following command writes secrets to the named pipe, disregarding json objects/arrays.
 
 doppler run --mount .env.json -- jq . .env.json
 
