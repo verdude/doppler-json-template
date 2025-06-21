@@ -1,46 +1,60 @@
-//! By convention, main.zig is where your main function lives in the case that
-//! you are building an executable. If you are making a library, the convention
-//! is to delete this file and start with root.zig instead.
+const std = @import("std");
+const json = std.json;
+
+fn isJsonType(value: *const json.Value) bool {
+    const obj = value.*.object;
+
+    if (obj.get("computedValueType")) |cvt| {
+        switch (cvt) {
+            .object => |cvt_obj| {
+                if (cvt_obj.get("type")) |type_val| {
+                    return switch (type_val) {
+                        .string => |s| std.mem.eql(u8, s, "json"),
+                        else => false,
+                    };
+                }
+            },
+            else => {},
+        }
+    }
+    return false;
+}
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    const alloc = std.heap.page_allocator;
+    // Read all of stdin (up to 32 MiB) into memory.
+    const raw = try std.io.getStdIn().reader().readAllAlloc(alloc, 32 * 1024 * 1024);
+    defer alloc.free(raw);
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    var parsed = try json.parseFromSlice(json.Value, alloc, raw, .{});
+    defer parsed.deinit();
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+    const root = parsed.value;
+    switch (root) {
+        .object => {},
+        else => return error.InvalidJson,
+    }
 
-    try bw.flush(); // Don't forget to flush!
-}
+    const out = std.io.getStdOut().writer();
+    try out.writeAll("{\n");
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // Try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
-}
+    var it = root.object.iterator();
+    var first: bool = true;
+    while (it.next()) |e| {
+        const key = e.key_ptr.*;
+        const val = e.value_ptr.*;
 
-test "use other module" {
-    try std.testing.expectEqual(@as(i32, 150), lib.add(100, 50));
-}
+        if (!first) try out.writeAll(",\n");
+        first = false;
 
-test "fuzz example" {
-    const Context = struct {
-        fn testOne(context: @This(), input: []const u8) anyerror!void {
-            _ = context;
-            // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
-            try std.testing.expect(!std.mem.eql(u8, "canyoufindme", input));
+        try out.print("  \"{s}\": {{{{ .{s} | ", .{ key, key });
+        if (isJsonType(&val)) {
+            try out.writeAll("fromjson }}");
+        } else {
+            try out.writeAll("tojson }}");
         }
-    };
-    try std.testing.fuzz(Context{}, Context.testOne, .{});
+    }
+
+    if (!first) try out.writeAll("\n");
+    try out.writeAll("}\n");
 }
-
-const std = @import("std");
-
-/// This imports the separate module containing `root.zig`. Take a look in `build.zig` for details.
-const lib = @import("doppler_template_gen_lib");
