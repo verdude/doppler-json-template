@@ -47,11 +47,11 @@ pub fn main() !void {
         if (!first) try out.writeAll(",\n");
         first = false;
 
-        try out.print("  \"{s}\": {{{{ .{s} | ", .{ key, key });
+        try out.print("  \"{s}\": {{{{ .{s} ", .{ key, key });
         if (isJsonType(&val)) {
-            try out.writeAll("fromjson }}");
+            try out.writeAll("}}");
         } else {
-            try out.writeAll("tojson }}");
+            try out.writeAll("| tojson }}");
         }
     }
 
